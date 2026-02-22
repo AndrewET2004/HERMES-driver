@@ -1,0 +1,28 @@
+# ──────────────────────────────────────────────────────────────────
+# HERMES Driver Parameters (update accordingly)
+# ──────────────────────────────────────────────────────────────────
+diff_drive_controller:
+  ros__parameters:
+    # ── Kinematics ────────────────────────────────────────────────
+    wheel_separation: 0.30    # metres – centre-to-centre of wheels
+    wheel_radius:     0.035   # metres
+
+    # ── Motor limits ──────────────────────────────────────────────
+    max_rpm: 200.0            # free-spin RPM of your DC motors
+
+    # ── PWM ───────────────────────────────────────────────────────
+    pwm_frequency: 1000       # Hz  (frequency at which the PWM signal is generated)
+
+    # ── GPIO Pin Map (BCM numbering) ─────────────────────────────
+    # Motor A  (left)
+    gpio_pwma: 12
+    gpio_ain1: 23
+    gpio_ain2: 24
+
+    # Motor B  (right)
+    gpio_pwmb: 13
+    gpio_bin1: 27
+    gpio_bin2: 22
+
+    # Standby
+    gpio_stby: 25
