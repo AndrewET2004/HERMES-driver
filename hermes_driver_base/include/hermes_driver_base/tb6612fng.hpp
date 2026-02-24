@@ -25,7 +25,7 @@ struct TB6612Pins
 /// Low-level driver for the TB6612FNG dual H-bridge motor driver.
 ///
 /// Responsibilities:
-///   - Initialise GPIO pins (via lgpio)
+///   - Initialise GPIO pins (via pigpio)
 ///   - Accept a speed value [-1.0, 1.0] per motor and translate to
 ///     PWM duty-cycle + direction pin states
 ///   - Enable / disable the driver via the STBY pin
@@ -64,7 +64,6 @@ private:
 
   TB6612Pins pins_;
   int pwm_freq_;
-  int gpio_handle_{-1};   // lgpio chip handle
   bool initialised_{false};
 };
 
