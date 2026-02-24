@@ -16,6 +16,13 @@ PWM + direction signals for a **TB6612FNG** dual H-bridge motor driver connected
 | BIN2          | Motor B dir 2    | configurable       |
 | STBY          | Standby (HIGH=on)| configurable       |
 
+## Dependencies
+
+- **libgpiod** — Linux GPIO character device library  
+  ```bash
+  sudo apt install libgpiod-dev
+  ```
+
 ## Building
 ```bash
 cd ~/hermes_ws

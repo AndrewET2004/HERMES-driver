@@ -1,7 +1,12 @@
 #ifndef HERMES_DRIVER_BASE__TB6612FNG_HPP_
 #define HERMES_DRIVER_BASE__TB6612FNG_HPP_
 
+#include <atomic>
 #include <cstdint>
+#include <string>
+#include <thread>
+
+#include <gpiod.h>
 
 namespace hermes_driver
 {
@@ -25,16 +30,20 @@ struct TB6612Pins
 /// Low-level driver for the TB6612FNG dual H-bridge motor driver.
 ///
 /// Responsibilities:
-///   - Initialise GPIO pins (via pigpio)
+///   - Initialise GPIO pins (via libgpiod)
 ///   - Accept a speed value [-1.0, 1.0] per motor and translate to
-///     PWM duty-cycle + direction pin states
+///     PWM duty-cycle + direction pin states using software PWM threads
 ///   - Enable / disable the driver via the STBY pin
 class TB6612FNG
 {
 public:
   /// @param pins        GPIO pin mapping
-  /// @param pwm_freq    PWM frequency in Hz (typical: 1000–20000)
-  explicit TB6612FNG(const TB6612Pins & pins, int pwm_freq = 1000);
+  /// @param pwm_freq    PWM frequency in Hz (typical: 100–2000)
+  /// @param chip_name   gpiochip device name (default: "gpiochip0")
+  explicit TB6612FNG(
+    const TB6612Pins & pins,
+    int pwm_freq = 1000,
+    const std::string & chip_name = "gpiochip0");
   ~TB6612FNG();
 
   // Prevent copies (owns a GPIO chip handle)
@@ -60,11 +69,36 @@ public:
   void shutdown();
 
 private:
-  void set_motor(const MotorPins & pins, double speed);
+  /// Software-PWM state for one motor channel.
+  struct PwmState
+  {
+    std::atomic<unsigned> duty{0};    // 0 (off) … 255 (full on)
+    std::atomic<bool>     running{false};
+    gpiod_line *          line{nullptr};
+    int                   freq{1000};
+    std::thread           thread;
+  };
 
-  TB6612Pins pins_;
-  int pwm_freq_;
-  bool initialised_{false};
+  void set_motor(gpiod_line * in1, gpiod_line * in2, PwmState & pwm, double speed);
+
+  TB6612Pins  pins_;
+  int         pwm_freq_;
+  std::string chip_name_;
+  bool        initialised_{false};
+
+  // libgpiod handles
+  gpiod_chip * chip_{nullptr};
+  gpiod_line * line_ain1_{nullptr};
+  gpiod_line * line_ain2_{nullptr};
+  gpiod_line * line_bin1_{nullptr};
+  gpiod_line * line_bin2_{nullptr};
+  gpiod_line * line_stby_{nullptr};
+  gpiod_line * line_pwma_{nullptr};
+  gpiod_line * line_pwmb_{nullptr};
+
+  // Software PWM channels (one per motor)
+  PwmState pwm_a_;
+  PwmState pwm_b_;
 };
 
 }  // namespace hermes_driver

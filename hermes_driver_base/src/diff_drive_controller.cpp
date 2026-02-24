@@ -23,6 +23,7 @@ DiffDriveController::DiffDriveController(const rclcpp::NodeOptions & options)
   this->declare_parameter("gpio_bin1", 27);
   this->declare_parameter("gpio_bin2", 22);
   this->declare_parameter("gpio_stby", 25);
+  this->declare_parameter("gpio_chip", std::string("gpiochip0"));
 
   // ── Read Parameters ─────────────────────────────────────────────
   wheel_separation_ = this->get_parameter("wheel_separation").as_double();
@@ -43,8 +44,10 @@ DiffDriveController::DiffDriveController(const rclcpp::NodeOptions & options)
   pins.motor_b.in2 = this->get_parameter("gpio_bin2").as_int();
   pins.stby        = this->get_parameter("gpio_stby").as_int();
 
+  std::string chip_name = this->get_parameter("gpio_chip").as_string();
+
   // ── Initialise Hardware ─────────────────────────────────────────
-  driver_ = std::make_unique<TB6612FNG>(pins, pwm_freq);
+  driver_ = std::make_unique<TB6612FNG>(pins, pwm_freq, chip_name);
   if (!driver_->init()) {
     RCLCPP_FATAL(this->get_logger(), "Failed to initialise TB6612FNG driver");
     throw std::runtime_error("GPIO init failed");

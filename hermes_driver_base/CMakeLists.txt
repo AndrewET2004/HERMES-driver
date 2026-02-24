@@ -12,9 +12,12 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 # ── GPIO Library ─────────────────────────────────────────────────────
-# pigpio is a C library; find it as a system library.
-# On Raspberry Pi: sudo apt install libpigpio-dev
-find_library(PIGPIO_LIB pigpio REQUIRED)
+# libgpiod is a C library for interacting with Linux GPIO character devices.
+# On Raspberry Pi: sudo apt install libgpiod-dev
+find_library(GPIOD_LIB gpiod REQUIRED)
+
+# Threads are required for software PWM
+find_package(Threads REQUIRED)
 
 # ── Build ────────────────────────────────────────────────────────────
 add_executable(diff_drive_controller_node
@@ -33,7 +36,7 @@ ament_target_dependencies(diff_drive_controller_node
   std_msgs
 )
 
-target_link_libraries(diff_drive_controller_node ${PIGPIO_LIB})
+target_link_libraries(diff_drive_controller_node ${GPIOD_LIB} Threads::Threads)
 
 # ── Install ──────────────────────────────────────────────────────────
 install(TARGETS diff_drive_controller_node
