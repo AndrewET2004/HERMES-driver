@@ -18,9 +18,9 @@ PWM + direction signals for a **TB6612FNG** dual H-bridge motor driver connected
 
 ## Dependencies
 
-- **libgpiod** — Linux GPIO character device library  
+- **libgpiod v2** — Linux GPIO character device library (v2.x API)  
   ```bash
-  sudo apt install libgpiod-dev
+  sudo apt install libgpiod-dev   # Raspberry Pi OS Bookworm ships v2
   ```
 
 ## Building

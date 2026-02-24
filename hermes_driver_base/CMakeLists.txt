@@ -12,9 +12,11 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 # ── GPIO Library ─────────────────────────────────────────────────────
-# libgpiod is a C library for interacting with Linux GPIO character devices.
-# On Raspberry Pi: sudo apt install libgpiod-dev
-find_library(GPIOD_LIB gpiod REQUIRED)
+# libgpiod v2 is the current stable C library for Linux GPIO character devices.
+# On Raspberry Pi OS (Bookworm): sudo apt install libgpiod-dev
+# Enforces the v2 API which is incompatible with v1.x.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GPIOD REQUIRED gpiod>=2.0)
 
 # Threads are required for software PWM
 find_package(Threads REQUIRED)
@@ -28,6 +30,7 @@ add_executable(diff_drive_controller_node
 target_include_directories(diff_drive_controller_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${GPIOD_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(diff_drive_controller_node
@@ -36,7 +39,7 @@ ament_target_dependencies(diff_drive_controller_node
   std_msgs
 )
 
-target_link_libraries(diff_drive_controller_node ${GPIOD_LIB} Threads::Threads)
+target_link_libraries(diff_drive_controller_node ${GPIOD_LIBRARIES} Threads::Threads)
 
 # ── Install ──────────────────────────────────────────────────────────
 install(TARGETS diff_drive_controller_node
