@@ -1,6 +1,6 @@
 #include "hermes_driver_base/tb6612fng.hpp"
 
-#include <lgpio.h>   
+#include <pigpio.h>
 
 #include <algorithm>
 #include <cmath>
@@ -20,28 +20,53 @@ TB6612FNG::~TB6612FNG()
 
 bool TB6612FNG::init()
 {
-  // Open the GPIO chip (4 for rpi5 i think)
-  gpio_handle_ = lgGpiochipOpen(4);
-  if (gpio_handle_ < 0) {
-    std::fprintf(stderr, "[TB6612FNG] Failed to open GPIO chip 0\n");
+  // Initialise the pigpio library
+  if (gpioInitialise() < 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to initialise pigpio\n");
     return false;
   }
 
-  // Claim direction pins as outputs (initially LOW)
-  auto claim_out = [&](int pin) {
-    return lgGpioClaimOutput(gpio_handle_, 0, pin, 0) == 0;
+  // Helper: configure a pin as output, drive it LOW, and report any error
+  auto setup_pin = [&](int pin) -> bool {
+    if (gpioSetMode(pin, PI_OUTPUT) != 0) {
+      std::fprintf(stderr, "[TB6612FNG] Failed to set mode for GPIO pin %d\n", pin);
+      return false;
+    }
+    if (gpioWrite(pin, 0) != 0) {
+      std::fprintf(stderr, "[TB6612FNG] Failed to write LOW to GPIO pin %d\n", pin);
+      return false;
+    }
+    return true;
   };
 
-  if (!claim_out(pins_.motor_a.in1) || !claim_out(pins_.motor_a.in2) ||
-      !claim_out(pins_.motor_b.in1) || !claim_out(pins_.motor_b.in2) ||
-      !claim_out(pins_.stby))
+  if (!setup_pin(pins_.motor_a.in1) || !setup_pin(pins_.motor_a.in2) ||
+      !setup_pin(pins_.motor_b.in1) || !setup_pin(pins_.motor_b.in2) ||
+      !setup_pin(pins_.stby))
   {
-    std::fprintf(stderr, "[TB6612FNG] Failed to claim direction/stby pins\n");
+    gpioTerminate();
     return false;
   }
 
-  // Enable the driver
-  lgGpioWrite(gpio_handle_, pins_.stby, 1);
+  // Set PWM frequency for both motor PWM pins
+  if (gpioSetPWMfrequency(pins_.motor_a.pwm, pwm_freq_) < 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to set PWM frequency for motor A pin %d\n",
+      pins_.motor_a.pwm);
+    gpioTerminate();
+    return false;
+  }
+  if (gpioSetPWMfrequency(pins_.motor_b.pwm, pwm_freq_) < 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to set PWM frequency for motor B pin %d\n",
+      pins_.motor_b.pwm);
+    gpioTerminate();
+    return false;
+  }
+
+  // Enable the driver (STBY HIGH)
+  if (gpioWrite(pins_.stby, 1) != 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to assert STBY pin %d\n", pins_.stby);
+    gpioTerminate();
+    return false;
+  }
 
   initialised_ = true;
   return true;
@@ -57,20 +82,30 @@ void TB6612FNG::set_motor(const MotorPins & mp, double speed)
   //   speed > 0  →  IN1 = HIGH, IN2 = LOW   (forward)
   //   speed < 0  →  IN1 = LOW,  IN2 = HIGH  (reverse)
   //   speed == 0 →  IN1 = LOW,  IN2 = LOW   (coast / brake)
+  int in1_val, in2_val;
   if (speed > 0.0) {
-    lgGpioWrite(gpio_handle_, mp.in1, 1);
-    lgGpioWrite(gpio_handle_, mp.in2, 0);
+    in1_val = 1;
+    in2_val = 0;
   } else if (speed < 0.0) {
-    lgGpioWrite(gpio_handle_, mp.in1, 0);
-    lgGpioWrite(gpio_handle_, mp.in2, 1);
+    in1_val = 0;
+    in2_val = 1;
   } else {
-    lgGpioWrite(gpio_handle_, mp.in1, 0);
-    lgGpioWrite(gpio_handle_, mp.in2, 0);
+    in1_val = 0;
+    in2_val = 0;
   }
 
-  // Magnitude setting with duty cycle: 0–100 %  (fp)
-  double duty = std::abs(speed) * 100.0;
-  lgTxPwm(gpio_handle_, mp.pwm, pwm_freq_, duty, 0, 0);
+  if (gpioWrite(mp.in1, in1_val) != 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to write IN1 on GPIO pin %d\n", mp.in1);
+  }
+  if (gpioWrite(mp.in2, in2_val) != 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to write IN2 on GPIO pin %d\n", mp.in2);
+  }
+
+  // pigpio gpioPWM duty cycle range: 0–255
+  unsigned duty = std::min(255u, static_cast<unsigned>(std::abs(speed) * 255.0));
+  if (gpioPWM(mp.pwm, duty) != 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to set PWM duty on GPIO pin %d\n", mp.pwm);
+  }
 }
 
 void TB6612FNG::set_motor_a(double speed) { set_motor(pins_.motor_a, speed); }
@@ -86,7 +121,9 @@ void TB6612FNG::set_motors(double speed_a, double speed_b)
 void TB6612FNG::set_standby(bool enable)
 {
   if (!initialised_) {return;}
-  lgGpioWrite(gpio_handle_, pins_.stby, enable ? 1 : 0);
+  if (gpioWrite(pins_.stby, enable ? 1 : 0) != 0) {
+    std::fprintf(stderr, "[TB6612FNG] Failed to write STBY pin %d\n", pins_.stby);
+  }
 }
 
 void TB6612FNG::shutdown()
@@ -97,8 +134,8 @@ void TB6612FNG::shutdown()
   set_motors(0.0, 0.0);
   set_standby(false);
 
-  // Release the GPIO chip
-  lgGpiochipClose(gpio_handle_);
+  // Release pigpio resources
+  gpioTerminate();
   initialised_ = false;
 }
 
