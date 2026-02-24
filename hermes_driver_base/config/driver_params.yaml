@@ -13,6 +13,9 @@ diff_drive_controller:
     # ── PWM ───────────────────────────────────────────────────────
     pwm_frequency: 1000       # Hz  (frequency at which the PWM signal is generated)
 
+    # ── GPIO Chip ────────────────────────────────────────────────────
+    gpio_chip: gpiochip0          # Linux GPIO character device name
+
     # ── GPIO Pin Map (BCM numbering) ─────────────────────────────
     # Motor A  (left)
     gpio_pwma: 12
