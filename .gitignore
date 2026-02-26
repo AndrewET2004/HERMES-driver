@@ -4,3 +4,4 @@ log/
 *.pyc
 __pycache__/
 hermes_driver_base/hermes_driver_base
+/.vscode/
