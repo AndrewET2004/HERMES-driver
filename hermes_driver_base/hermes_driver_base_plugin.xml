@@ -1,0 +1,17 @@
+<library path="hermes_hardware">
+  <class
+    name="hermes_driver_base/HermesHardware"
+    type="hermes_driver::HermesHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control SystemInterface plugin for the HERMES differential-drive
+      robot. Controls two DC motors via the TB6612FNG dual H-bridge motor
+      driver over Linux GPIO (libgpiod v2). Suitable for Raspberry Pi and
+      similar single-board computers.
+
+      Since the robot has no wheel encoders, the read() method integrates
+      commanded velocities to produce an open-loop wheel-position estimate
+      that the diff_drive_controller uses for odometry.
+    </description>
+  </class>
+</library>
