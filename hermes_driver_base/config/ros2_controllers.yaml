@@ -1,0 +1,51 @@
+# ──────────────────────────────────────────────────────────────────────────
+# HERMES ros2_control configuration
+#
+# controller_manager spawns the controllers listed below.
+# diff_drive_controller handles /cmd_vel → wheel commands and publishes /odom.
+# joint_state_broadcaster re-publishes wheel states on /joint_states.
+# ──────────────────────────────────────────────────────────────────────────
+
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # Hz – control loop frequency
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+# ── diff_drive_controller ──────────────────────────────────────────────────
+diff_drive_controller:
+  ros__parameters:
+    # Wheel joint names must match those declared in the URDF <ros2_control>
+    # block (and the HermesHardware plugin's joint order: 0=left, 1=right).
+    left_wheel_names:  ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    # ── Kinematics ──────────────────────────────────────────────────────────
+    wheel_separation: 0.30    # metres – centre-to-centre of wheels
+    wheel_radius:     0.035   # metres
+
+    # ── Odometry ────────────────────────────────────────────────────────────
+    # open_loop: false means the controller integrates wheel velocity states
+    # (provided by HermesHardware::read) to compute odometry.
+    open_loop: false
+    enable_odom_tf: true      # publish odom → base_link TF transform
+    odom_frame_id:  odom
+    base_frame_id:  base_link
+
+    # Diagonal elements of the 6×6 pose and twist covariance matrices.
+    pose_covariance_diagonal:  [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+    # ── Velocity command ────────────────────────────────────────────────────
+    # Set to false if publishing geometry_msgs/Twist (not TwistStamped).
+    use_stamped_vel: false
+
+    # ── Velocity limits ─────────────────────────────────────────────────────
+    linear.x.max_velocity:  1.0    # m/s
+    linear.x.min_velocity: -1.0
+    angular.z.max_velocity:  2.0   # rad/s
+    angular.z.min_velocity: -2.0

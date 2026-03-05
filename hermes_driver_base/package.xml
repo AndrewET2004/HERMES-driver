@@ -4,18 +4,35 @@
   <name>hermes_driver_base</name>
   <version>0.1.0</version>
   <description>
-    Low-level motor driver node for HERMES. Converts cmd_vel to PWM/direction
-    signals for a TB6612FNG dual H-bridge motor driver over GPIO.
+    Low-level motor driver for HERMES. Provides a ros2_control hardware
+    interface plugin (HermesHardware) that controls two DC motors via the
+    TB6612FNG dual H-bridge over GPIO. Works with the standard
+    diff_drive_controller for cmd_vel handling and odometry.
   </description>
   <maintainer email="yperera@uci.edu">hermes-team</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- Core ROS 2 -->
   <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
+
+  <!-- ros2_control hardware interface plugin -->
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+
+  <!-- System GPIO library -->
   <depend>libgpiod</depend>                              <!-- system dependency -->
+
+  <!-- Runtime: controller manager + standard controllers + robot description -->
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>diff_drive_controller</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

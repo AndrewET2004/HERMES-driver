@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<robot name="hermes" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       HERMES Differential-Drive Robot URDF
+       Wheel separation : 0.30 m (centre-to-centre)
+       Wheel radius     : 0.035 m
+       ───────────────────────────────────────────────────────────────── -->
+
+  <!-- ── Base link ──────────────────────────────────────────────────── -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.20 0.15 0.08"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.5 0.5 0.5 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.20 0.15 0.08"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0"
+               iyy="0.01" iyz="0.0"
+               izz="0.01"/>
+    </inertial>
+  </link>
+
+  <!-- ── Left wheel ─────────────────────────────────────────────────── -->
+  <link name="left_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder length="0.025" radius="0.035"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.025" radius="0.035"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0.0" ixz="0.0"
+               iyy="0.0001" iyz="0.0"
+               izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Left wheel rotates about the Y-axis of base_link; the joint rpy
+       rotates the cylinder so its flat face aligns with the wheel plane. -->
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0.0 0.15 0.0" rpy="${-pi/2} 0.0 0.0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ── Right wheel ────────────────────────────────────────────────── -->
+  <link name="right_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder length="0.025" radius="0.035"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.025" radius="0.035"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0.0" ixz="0.0"
+               iyy="0.0001" iyz="0.0"
+               izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0.0 -0.15 0.0" rpy="${-pi/2} 0.0 0.0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ── ros2_control hardware interface ────────────────────────────── -->
+  <ros2_control name="HermesHardware" type="system">
+    <hardware>
+      <plugin>hermes_driver_base/HermesHardware</plugin>
+
+      <!-- Motor limits -->
+      <param name="max_rpm">200.0</param>
+      <param name="pwm_frequency">1000</param>
+
+      <!-- GPIO chip (Raspberry Pi default) -->
+      <param name="gpio_chip">gpiochip0</param>
+
+      <!-- Motor A (left) GPIO BCM pins -->
+      <param name="gpio_pwma">12</param>
+      <param name="gpio_ain1">23</param>
+      <param name="gpio_ain2">24</param>
+
+      <!-- Motor B (right) GPIO BCM pins -->
+      <param name="gpio_pwmb">13</param>
+      <param name="gpio_bin1">27</param>
+      <param name="gpio_bin2">22</param>
+
+      <!-- Standby pin -->
+      <param name="gpio_stby">25</param>
+    </hardware>
+
+    <!-- Index 0 → left wheel (Motor A) -->
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <!-- Index 1 → right wheel (Motor B) -->
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>
