@@ -90,8 +90,13 @@ static void pwm_loop(
 // ── Constructor / Destructor ────────────────────────────────────────────────
 
 TB6612FNG::TB6612FNG(
-  const TB6612Pins & pins, int pwm_freq, const std::string & chip_name)
-: pins_(pins), pwm_freq_(pwm_freq > 0 ? pwm_freq : 1000), chip_name_(chip_name)
+  const TB6612Pins & pins, int pwm_freq, const std::string & chip_name,
+  double min_pwm_fraction, double velocity_deadband)
+: pins_(pins),
+  pwm_freq_(pwm_freq > 0 ? pwm_freq : 1000),
+  chip_name_(chip_name),
+  min_pwm_fraction_(std::clamp(min_pwm_fraction, 0.0, 1.0)),
+  velocity_deadband_(std::clamp(velocity_deadband, 0.0, 1.0))
 {}
 
 TB6612FNG::~TB6612FNG()
@@ -232,6 +237,13 @@ void TB6612FNG::set_motor(
 
   speed = std::clamp(speed, -1.0, 1.0);
 
+  // Apply velocity deadband: commands smaller than this threshold are treated
+  // as zero so that navigation micro-corrections do not snap the motor to the
+  // minimum-PWM floor and cause oscillation / overshoot.
+  if (std::abs(speed) < velocity_deadband_) {
+    speed = 0.0;
+  }
+
   // Direction logic:
   //   speed > 0  →  IN1 = HIGH, IN2 = LOW   (forward)
   //   speed < 0  →  IN1 = LOW,  IN2 = HIGH  (reverse)
@@ -255,8 +267,20 @@ void TB6612FNG::set_motor(
     std::fprintf(stderr, "[TB6612FNG] Failed to write IN2 (offset %u)\n", in2_off);
   }
 
-  // Update duty cycle for the software-PWM thread (0–255)
-  pwm.duty = std::min(255u, static_cast<unsigned>(std::abs(speed) * 255.0));
+  // Compute PWM duty cycle (0–255).
+  // For non-zero commands, remap the normalised speed from [0, 1] to
+  // [min_pwm_fraction_, 1] so the motor always receives enough drive current
+  // to overcome static friction while preserving proportional control.
+  // Zero commands produce duty = 0 so the motor actually stops.
+  const double abs_speed = std::abs(speed);
+  unsigned duty;
+  if (abs_speed < 1e-9) {
+    duty = 0;
+  } else {
+    const double effective = min_pwm_fraction_ + (1.0 - min_pwm_fraction_) * abs_speed;
+    duty = std::min(255u, static_cast<unsigned>(effective * 255.0));
+  }
+  pwm.duty = duty;
 }
 
 // ── Public motor setters ────────────────────────────────────────────────────

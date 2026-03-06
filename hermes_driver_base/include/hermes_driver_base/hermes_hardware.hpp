@@ -25,12 +25,19 @@ namespace hermes_driver
 /// commanded velocity to produce an open-loop odometry estimate.
 ///
 /// Hardware parameters (set inside the <ros2_control> URDF block):
-///   max_rpm          – free-spin RPM of the DC motors
-///   pwm_frequency    – software PWM frequency in Hz
-///   gpio_chip        – gpiochip device name (e.g. "gpiochip0")
+///   max_rpm             – free-spin RPM of the DC motors
+///   pwm_frequency       – software PWM frequency in Hz
+///   gpio_chip           – gpiochip device name (e.g. "gpiochip0")
 ///   gpio_pwma/ain1/ain2 – Motor A GPIO BCM pins
 ///   gpio_pwmb/bin1/bin2 – Motor B GPIO BCM pins
-///   gpio_stby        – Standby GPIO BCM pin
+///   gpio_stby           – Standby GPIO BCM pin
+///   min_pwm_fraction    – (optional, default 0.15) minimum duty-cycle for
+///                         any non-zero speed command; ensures motors always
+///                         overcome static friction
+///   velocity_deadband   – (optional, default 0.05) normalised-speed threshold
+///                         [0, 1] below which commands are treated as zero;
+///                         prevents navigation micro-corrections from snapping
+///                         the motor to min_pwm and causing oscillation
 ///
 /// Joints (in URDF <ros2_control> order, index 0 = left, 1 = right):
 ///   command_interface: velocity  (rad/s)

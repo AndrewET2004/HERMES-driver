@@ -99,6 +99,17 @@
       <param name="max_rpm">200.0</param>
       <param name="pwm_frequency">1000</param>
 
+      <!-- Minimum PWM duty-cycle fraction (0–1) applied whenever a non-zero
+           speed command is issued.  Ensures motors can always overcome static
+           friction even for small cmd_vel inputs.  Set to 0 to disable. -->
+      <param name="min_pwm_fraction">0.15</param>
+
+      <!-- Normalised-speed deadband (0–1).  Wheel speed commands whose
+           magnitude falls below this fraction of max speed are treated as
+           zero.  Prevents navigation micro-corrections from repeatedly
+           snapping the motor to min_pwm and causing oscillation. -->
+      <param name="velocity_deadband">0.05</param>
+
       <!-- GPIO chip (Raspberry Pi default) -->
       <param name="gpio_chip">gpiochip0</param>
 

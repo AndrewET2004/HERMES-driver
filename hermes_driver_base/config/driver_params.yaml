@@ -13,6 +13,17 @@ diff_drive_controller:
     # ── PWM ───────────────────────────────────────────────────────
     pwm_frequency: 1000       # Hz  (frequency at which the PWM signal is generated)
 
+    # Minimum PWM duty-cycle fraction (0–1) applied whenever a non-zero speed
+    # command is issued.  Ensures motors can always overcome static friction
+    # even for small cmd_vel inputs.  Set to 0.0 to disable.
+    min_pwm_fraction: 0.15
+
+    # Normalised-speed deadband (0–1).  Wheel commands whose magnitude falls
+    # below this fraction of max speed are treated as zero.  Prevents
+    # navigation micro-corrections from snapping the motor to min_pwm and
+    # causing oscillation / overshoot.  Set to 0.0 to disable.
+    velocity_deadband: 0.05
+
     # ── GPIO Chip ────────────────────────────────────────────────────
     gpio_chip: gpiochip0          # Linux GPIO character device name
 
