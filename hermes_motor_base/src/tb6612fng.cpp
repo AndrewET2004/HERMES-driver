@@ -21,45 +21,67 @@ static std::string to_chip_path(const std::string & name)
   return "/dev/" + name;
 }
 
-/// Create a single-line output request on @p chip for @p offset.
-/// Returns nullptr on failure.
-/// Note: in libgpiod v1 the gpiod_line handle is owned by the chip and must
-/// NOT be freed independently.  Only the request (acquired by
-/// gpiod_line_request_output) needs to be released via gpiod_line_release().
-/// If gpiod_line_request_output fails there is no request to release, so no
-/// cleanup is required beyond closing the chip.
-static gpiod_line * request_output_line(
+/// Open @p chip and request a single output line at @p offset as consumer
+/// @p consumer.  Returns the new gpiod_line_request on success, nullptr on
+/// failure.  All temporary configuration objects are freed before returning.
+static gpiod_line_request * request_output_line(
   gpiod_chip * chip, unsigned int offset, const char * consumer)
 {
-  gpiod_line * line = gpiod_chip_get_line(chip, offset);
-  if (!line) {return nullptr;}
-  if (gpiod_line_request_output(line, consumer, 0) < 0) {return nullptr;}
-  return line;
+  gpiod_line_request * result = nullptr;
+
+  gpiod_line_settings * settings = gpiod_line_settings_new();
+  if (!settings) {return nullptr;}
+
+  gpiod_line_config * line_cfg = gpiod_line_config_new();
+  if (!line_cfg) {
+    gpiod_line_settings_free(settings);
+    return nullptr;
+  }
+
+  gpiod_request_config * req_cfg = gpiod_request_config_new();
+  if (!req_cfg) {
+    gpiod_line_config_free(line_cfg);
+    gpiod_line_settings_free(settings);
+    return nullptr;
+  }
+
+  gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+  gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_INACTIVE);
+
+  if (gpiod_line_config_add_line_settings(line_cfg, &offset, 1, settings) == 0) {
+    gpiod_request_config_set_consumer(req_cfg, consumer);
+    result = gpiod_chip_request_lines(chip, req_cfg, line_cfg);
+  }
+
+  gpiod_request_config_free(req_cfg);
+  gpiod_line_config_free(line_cfg);
+  gpiod_line_settings_free(settings);
+  return result;
 }
 
 // ── Software-PWM loop (runs on its own thread) ────────────────────────────────
-// Owns exclusive access to its gpiod_line; no locking needed.
+// Owns exclusive access to its gpiod_line_request; no locking needed.
 
 static void pwm_loop(
   std::atomic<unsigned> & duty, std::atomic<bool> & running,
-  gpiod_line * line, int freq)
+  gpiod_line_request * request, unsigned int offset, int freq)
 {
   const int period_us = 1000000 / freq;
   while (running.load(std::memory_order_relaxed)) {
     unsigned d = duty.load(std::memory_order_relaxed);
 
     if (d == 0) {
-      gpiod_line_set_value(line, 0);
+      gpiod_line_request_set_value(request, offset, GPIOD_LINE_VALUE_INACTIVE);
       std::this_thread::sleep_for(std::chrono::microseconds(period_us));
     } else if (d >= 255) {
-      gpiod_line_set_value(line, 1);
+      gpiod_line_request_set_value(request, offset, GPIOD_LINE_VALUE_ACTIVE);
       std::this_thread::sleep_for(std::chrono::microseconds(period_us));
     } else {
       int on_us  = (period_us * static_cast<int>(d)) / 255;
       int off_us = period_us - on_us;
-      gpiod_line_set_value(line, 1);
+      gpiod_line_request_set_value(request, offset, GPIOD_LINE_VALUE_ACTIVE);
       std::this_thread::sleep_for(std::chrono::microseconds(on_us));
-      gpiod_line_set_value(line, 0);
+      gpiod_line_request_set_value(request, offset, GPIOD_LINE_VALUE_INACTIVE);
       std::this_thread::sleep_for(std::chrono::microseconds(off_us));
     }
   }
@@ -88,88 +110,82 @@ bool TB6612FNG::init()
 {
   // Open the GPIO chip
   const std::string path = to_chip_path(chip_name_);
-  chip_ = gpiod_chip_open(path.c_str());
-  if (!chip_) {
+  gpiod_chip * chip = gpiod_chip_open(path.c_str());
+  if (!chip) {
     std::fprintf(stderr, "[TB6612FNG] Failed to open GPIO chip '%s'\n", path.c_str());
     return false;
   }
 
-  // Helper lambda: get and request a single line as output (default LOW).
-  auto req = [&](int offset, const char * name) -> gpiod_line * {
-    gpiod_line * l = gpiod_chip_get_line(chip_, static_cast<unsigned int>(offset));
-    if (!l) {
-      std::fprintf(stderr, "[TB6612FNG] Failed to get line %d (%s)\n", offset, name);
-      return nullptr;
-    }
-    if (gpiod_line_request_output(l, "hermes_driver", 0) < 0) {
+  // Helper lambda: request a single output line and fill a GpioLine struct.
+  auto req = [&](int offset_i, const char * name, GpioLine & out) -> bool {
+    unsigned int off = static_cast<unsigned int>(offset_i);
+    out.request = request_output_line(chip, off, "hermes_driver");
+    if (!out.request) {
       std::fprintf(stderr,
-        "[TB6612FNG] Failed to request line %d (%s) as output\n", offset, name);
-      return nullptr;
+        "[TB6612FNG] Failed to request line %d (%s) as output\n", offset_i, name);
+      return false;
     }
-    return l;
+    out.offset = off;
+    return true;
+  };
+
+  // ── Release helper: release a GpioLine if it has an active request ────────
+  auto rel = [](GpioLine & gl) {
+    if (gl.request) {
+      gpiod_line_request_release(gl.request);
+      gl.request = nullptr;
+    }
   };
 
   // ── Direction + standby pins ─────────────────────────────────────────────
-  line_in1_a_ = req(pins_.motor_a.in1, "AIN1");
-  if (!line_in1_a_) { gpiod_chip_close(chip_); chip_ = nullptr; return false; }
-
-  line_in2_a_ = req(pins_.motor_a.in2, "AIN2");
-  if (!line_in2_a_) {
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr; return false;
+  if (!req(pins_.motor_a.in1, "AIN1", line_in1_a_)) {
+    gpiod_chip_close(chip); return false;
   }
 
-  line_in1_b_ = req(pins_.motor_b.in1, "BIN1");
-  if (!line_in1_b_) {
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr; return false;
+  if (!req(pins_.motor_a.in2, "AIN2", line_in2_a_)) {
+    rel(line_in1_a_); gpiod_chip_close(chip); return false;
   }
 
-  line_in2_b_ = req(pins_.motor_b.in2, "BIN2");
-  if (!line_in2_b_) {
-    gpiod_line_release(line_in1_b_); line_in1_b_ = nullptr;
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr; return false;
+  if (!req(pins_.motor_b.in1, "BIN1", line_in1_b_)) {
+    rel(line_in2_a_); rel(line_in1_a_);
+    gpiod_chip_close(chip); return false;
   }
 
-  line_stby_ = req(pins_.stby, "STBY");
-  if (!line_stby_) {
-    gpiod_line_release(line_in2_b_); line_in2_b_ = nullptr;
-    gpiod_line_release(line_in1_b_); line_in1_b_ = nullptr;
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr; return false;
+  if (!req(pins_.motor_b.in2, "BIN2", line_in2_b_)) {
+    rel(line_in1_b_); rel(line_in2_a_); rel(line_in1_a_);
+    gpiod_chip_close(chip); return false;
+  }
+
+  if (!req(pins_.stby, "STBY", line_stby_)) {
+    rel(line_in2_b_); rel(line_in1_b_); rel(line_in2_a_); rel(line_in1_a_);
+    gpiod_chip_close(chip); return false;
   }
 
   // ── PWM pins (each owned exclusively by its software-PWM thread) ─────────
-  pwm_a_.line = request_output_line(chip_,
+  pwm_a_.gpio.request = request_output_line(chip,
     static_cast<unsigned int>(pins_.motor_a.pwm), "hermes_driver_pwma");
-  if (!pwm_a_.line) {
+  if (!pwm_a_.gpio.request) {
     std::fprintf(stderr, "[TB6612FNG] Failed to request PWMA line %d\n", pins_.motor_a.pwm);
-    gpiod_line_release(line_stby_);   line_stby_  = nullptr;
-    gpiod_line_release(line_in2_b_); line_in2_b_ = nullptr;
-    gpiod_line_release(line_in1_b_); line_in1_b_ = nullptr;
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr;
+    rel(line_stby_); rel(line_in2_b_); rel(line_in1_b_);
+    rel(line_in2_a_); rel(line_in1_a_);
+    gpiod_chip_close(chip);
     return false;
   }
+  pwm_a_.gpio.offset = static_cast<unsigned int>(pins_.motor_a.pwm);
 
-  pwm_b_.line = request_output_line(chip_,
+  pwm_b_.gpio.request = request_output_line(chip,
     static_cast<unsigned int>(pins_.motor_b.pwm), "hermes_driver_pwmb");
-  if (!pwm_b_.line) {
+  if (!pwm_b_.gpio.request) {
     std::fprintf(stderr, "[TB6612FNG] Failed to request PWMB line %d\n", pins_.motor_b.pwm);
-    gpiod_line_release(pwm_a_.line);  pwm_a_.line = nullptr;
-    gpiod_line_release(line_stby_);   line_stby_  = nullptr;
-    gpiod_line_release(line_in2_b_); line_in2_b_ = nullptr;
-    gpiod_line_release(line_in1_b_); line_in1_b_ = nullptr;
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr;
+    rel(pwm_a_.gpio); rel(line_stby_); rel(line_in2_b_); rel(line_in1_b_);
+    rel(line_in2_a_); rel(line_in1_a_);
+    gpiod_chip_close(chip);
     return false;
   }
+  pwm_b_.gpio.offset = static_cast<unsigned int>(pins_.motor_b.pwm);
+
+  // The chip can be closed once all line requests have been obtained.
+  gpiod_chip_close(chip);
 
   // ── Start software-PWM threads ────────────────────────────────────────────
   pwm_a_.freq    = pwm_freq_;
@@ -178,7 +194,7 @@ bool TB6612FNG::init()
   pwm_a_.thread  = std::thread(
     pwm_loop,
     std::ref(pwm_a_.duty), std::ref(pwm_a_.running),
-    pwm_a_.line, pwm_freq_);
+    pwm_a_.gpio.request, pwm_a_.gpio.offset, pwm_freq_);
 
   pwm_b_.freq    = pwm_freq_;
   pwm_b_.duty    = 0;
@@ -186,23 +202,21 @@ bool TB6612FNG::init()
   pwm_b_.thread  = std::thread(
     pwm_loop,
     std::ref(pwm_b_.duty), std::ref(pwm_b_.running),
-    pwm_b_.line, pwm_freq_);
+    pwm_b_.gpio.request, pwm_b_.gpio.offset, pwm_freq_);
 
   // ── Enable the driver (STBY HIGH) ─────────────────────────────────────────
-  if (gpiod_line_set_value(line_stby_, 1) < 0) {
+  if (gpiod_line_request_set_value(line_stby_.request, line_stby_.offset,
+    GPIOD_LINE_VALUE_ACTIVE) < 0)
+  {
     std::fprintf(stderr, "[TB6612FNG] Failed to assert STBY pin %d\n", pins_.stby);
     pwm_a_.running = false;
     pwm_b_.running = false;
     if (pwm_a_.thread.joinable()) { pwm_a_.thread.join(); }
     if (pwm_b_.thread.joinable()) { pwm_b_.thread.join(); }
-    gpiod_line_release(pwm_b_.line);  pwm_b_.line = nullptr;
-    gpiod_line_release(pwm_a_.line);  pwm_a_.line = nullptr;
-    gpiod_line_release(line_stby_);   line_stby_  = nullptr;
-    gpiod_line_release(line_in2_b_); line_in2_b_ = nullptr;
-    gpiod_line_release(line_in1_b_); line_in1_b_ = nullptr;
-    gpiod_line_release(line_in2_a_); line_in2_a_ = nullptr;
-    gpiod_line_release(line_in1_a_); line_in1_a_ = nullptr;
-    gpiod_chip_close(chip_); chip_ = nullptr;
+    gpiod_line_request_release(pwm_b_.gpio.request); pwm_b_.gpio.request = nullptr;
+    gpiod_line_request_release(pwm_a_.gpio.request); pwm_a_.gpio.request = nullptr;
+    rel(line_stby_); rel(line_in2_b_); rel(line_in1_b_);
+    rel(line_in2_a_); rel(line_in1_a_);
     return false;
   }
 
@@ -213,7 +227,7 @@ bool TB6612FNG::init()
 // ── set_motor (private) ─────────────────────────────────────────────────────
 
 void TB6612FNG::set_motor(
-  gpiod_line * in1_line, gpiod_line * in2_line, PwmState & pwm, double speed)
+  const GpioLine & in1, const GpioLine & in2, PwmState & pwm, double speed)
 {
   if (!initialised_) {return;}
 
@@ -230,22 +244,22 @@ void TB6612FNG::set_motor(
   //   speed > 0  →  IN1 = HIGH, IN2 = LOW   (forward)
   //   speed < 0  →  IN1 = LOW,  IN2 = HIGH  (reverse)
   //   speed == 0 →  IN1 = LOW,  IN2 = LOW   (coast)
-  int in1_val, in2_val;
+  gpiod_line_value in1_val, in2_val;
   if (speed > 0.0) {
-    in1_val = 1;
-    in2_val = 0;
+    in1_val = GPIOD_LINE_VALUE_ACTIVE;
+    in2_val = GPIOD_LINE_VALUE_INACTIVE;
   } else if (speed < 0.0) {
-    in1_val = 0;
-    in2_val = 1;
+    in1_val = GPIOD_LINE_VALUE_INACTIVE;
+    in2_val = GPIOD_LINE_VALUE_ACTIVE;
   } else {
-    in1_val = 0;
-    in2_val = 0;
+    in1_val = GPIOD_LINE_VALUE_INACTIVE;
+    in2_val = GPIOD_LINE_VALUE_INACTIVE;
   }
 
-  if (gpiod_line_set_value(in1_line, in1_val) < 0) {
+  if (gpiod_line_request_set_value(in1.request, in1.offset, in1_val) < 0) {
     std::fprintf(stderr, "[TB6612FNG] Failed to write IN1\n");
   }
-  if (gpiod_line_set_value(in2_line, in2_val) < 0) {
+  if (gpiod_line_request_set_value(in2.request, in2.offset, in2_val) < 0) {
     std::fprintf(stderr, "[TB6612FNG] Failed to write IN2\n");
   }
 
@@ -286,7 +300,9 @@ void TB6612FNG::set_motors(double speed_a, double speed_b)
 void TB6612FNG::set_standby(bool enable)
 {
   if (!initialised_) {return;}
-  if (gpiod_line_set_value(line_stby_, enable ? 1 : 0) < 0) {
+  if (gpiod_line_request_set_value(line_stby_.request, line_stby_.offset,
+    enable ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE) < 0)
+  {
     std::fprintf(stderr, "[TB6612FNG] Failed to write STBY pin %d\n", pins_.stby);
   }
 }
@@ -304,22 +320,32 @@ void TB6612FNG::shutdown()
   if (!initialised_) {return;}
 
   // Drive direction pins and STBY LOW before releasing
-  if (line_in1_a_) { gpiod_line_set_value(line_in1_a_, 0); }
-  if (line_in2_a_) { gpiod_line_set_value(line_in2_a_, 0); }
-  if (line_in1_b_) { gpiod_line_set_value(line_in1_b_, 0); }
-  if (line_in2_b_) { gpiod_line_set_value(line_in2_b_, 0); }
-  if (line_stby_)  { gpiod_line_set_value(line_stby_,  0); }
+  auto set_low = [](const GpioLine & gl) {
+    if (gl.request) {
+      gpiod_line_request_set_value(gl.request, gl.offset, GPIOD_LINE_VALUE_INACTIVE);
+    }
+  };
+  set_low(line_in1_a_);
+  set_low(line_in2_a_);
+  set_low(line_in1_b_);
+  set_low(line_in2_b_);
+  set_low(line_stby_);
 
-  // Release all line requests, then close the chip
-  if (pwm_b_.line)  { gpiod_line_release(pwm_b_.line);  pwm_b_.line  = nullptr; }
-  if (pwm_a_.line)  { gpiod_line_release(pwm_a_.line);  pwm_a_.line  = nullptr; }
-  if (line_stby_)   { gpiod_line_release(line_stby_);   line_stby_   = nullptr; }
-  if (line_in2_b_)  { gpiod_line_release(line_in2_b_);  line_in2_b_  = nullptr; }
-  if (line_in1_b_)  { gpiod_line_release(line_in1_b_);  line_in1_b_  = nullptr; }
-  if (line_in2_a_)  { gpiod_line_release(line_in2_a_);  line_in2_a_  = nullptr; }
-  if (line_in1_a_)  { gpiod_line_release(line_in1_a_);  line_in1_a_  = nullptr; }
-  gpiod_chip_close(chip_);
-  chip_ = nullptr;
+  // Release all line requests
+  auto rel = [](GpioLine & gl) {
+    if (gl.request) {
+      gpiod_line_request_release(gl.request);
+      gl.request = nullptr;
+    }
+  };
+  rel(pwm_b_.gpio);
+  rel(pwm_a_.gpio);
+  rel(line_stby_);
+  rel(line_in2_b_);
+  rel(line_in1_b_);
+  rel(line_in2_a_);
+  rel(line_in1_a_);
+
   initialised_ = false;
 }
 
