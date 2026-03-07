@@ -18,8 +18,42 @@ find_package(pluginlib REQUIRED)
 # libgpiod v1.x C library for Linux GPIO character devices.
 # On Raspberry Pi OS (Bullseye) / Ubuntu 22.04: sudo apt install libgpiod-dev
 # Uses the v1 API (tested with 1.6.x); incompatible with the v2 API.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GPIOD REQUIRED gpiod)
+#
+# Try pkg-config first; fall back to manual search when gpiod.pc is absent
+# (common on Raspberry Pi with libgpiod 1.6.3 installed via apt).
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+  pkg_check_modules(GPIOD QUIET gpiod)
+endif()
+
+if(NOT GPIOD_FOUND)
+  # Manual fallback: search standard ARM and generic library locations,
+  # then fall through to CMake's default search paths.
+  find_library(GPIOD_LIBRARY
+    NAMES gpiod
+    PATHS
+      /usr/lib/arm-linux-gnueabihf
+      /usr/lib/aarch64-linux-gnu
+      /usr/lib
+  )
+  find_path(GPIOD_INCLUDE_DIR
+    NAMES gpiod.h
+    PATHS /usr/include
+  )
+
+  if(NOT GPIOD_LIBRARY OR NOT GPIOD_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "libgpiod not found. Install it with: sudo apt install libgpiod-dev\n"
+      "Searched library paths: /usr/lib/arm-linux-gnueabihf, "
+      "/usr/lib/aarch64-linux-gnu, /usr/lib\n"
+      "Searched header path: /usr/include"
+    )
+  endif()
+
+  set(GPIOD_LIBRARIES  ${GPIOD_LIBRARY})
+  set(GPIOD_INCLUDE_DIRS ${GPIOD_INCLUDE_DIR})
+  message(STATUS "Found gpiod (manual): lib=${GPIOD_LIBRARY}  inc=${GPIOD_INCLUDE_DIR}")
+endif()
 
 # Threads are required for software PWM
 find_package(Threads REQUIRED)
