@@ -14,7 +14,7 @@ standard `diff_drive_controller` handles `/cmd_vel` subscribing and `/odom` publ
 diff_drive_controller          ← ros2_controllers standard plugin
     │  velocity commands (rad/s)
     ▼
-HermesHardware plugin          ← hermes_driver_base/HermesHardware
+HermesHardware plugin          ← hermes_motor_base/HermesHardware
     │  normalised speed [-1, 1]
     ▼
 TB6612FNG GPIO driver          ← libgpiod v2
@@ -56,14 +56,14 @@ All GPIO pins, wheel geometry, and motor limits are configured in
 
 ```bash
 cd ~/hermes_ws
-colcon build --packages-select hermes_driver_base
+colcon build --packages-select hermes_motor_base
 source install/setup.bash
 ```
 
 ## Running (ros2_control approach — recommended)
 
 ```bash
-ros2 launch hermes_driver_base hermes_control.launch.py
+ros2 launch hermes_motor_base hermes_control.launch.py
 ```
 
 This starts:
@@ -75,7 +75,7 @@ This starts:
 ### Legacy standalone node (backward-compatible)
 
 ```bash
-ros2 launch hermes_driver_base driver.launch.py
+ros2 launch hermes_motor_base driver.launch.py
 ```
 
 The original single-node approach is preserved for simple deployments that do

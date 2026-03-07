@@ -2,7 +2,9 @@
 # HERMES ros2_control configuration
 #
 # controller_manager spawns the controllers listed below.
-# diff_drive_controller handles /cmd_vel → wheel commands and publishes /odom.
+# diff_drive_controller handles /cmd_vel → wheel commands.
+# Odometry (/odom) and the odom→base_link TF are NOT published here;
+# the project supplies its own odometry and TF sources.
 # joint_state_broadcaster re-publishes wheel states on /joint_states.
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -32,20 +34,32 @@ diff_drive_controller:
     # open_loop: false means the controller integrates wheel velocity states
     # (provided by HermesHardware::read) to compute odometry.
     open_loop: false
-    enable_odom_tf: true      # publish odom → base_link TF transform
+    enable_odom_tf: false     # do NOT publish odom → base_link TF (external source used)
     odom_frame_id:  odom
     base_frame_id:  base_link
 
-    # Diagonal elements of the 6×6 pose and twist covariance matrices.
-    pose_covariance_diagonal:  [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
-    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    # Odometry covariance – these values reflect the uncertainty of open-loop
+    # dead-reckoning (no wheel encoders).  Higher values tell nav2 to trust the
+    # odometry less and rely more on sensor-based localization corrections.
+    pose_covariance_diagonal:  [0.05, 0.05, 0.05, 0.05, 0.05, 0.1]
+    twist_covariance_diagonal: [0.05, 0.05, 0.05, 0.05, 0.05, 0.1]
 
     # ── Velocity command ────────────────────────────────────────────────────
     # Set to false if publishing geometry_msgs/Twist (not TwistStamped).
     use_stamped_vel: false
 
+    # Stop motors if no cmd_vel received within this many seconds.
+    cmd_vel_timeout: 0.5
+
     # ── Velocity limits ─────────────────────────────────────────────────────
-    linear.x.max_velocity:  1.0    # m/s
-    linear.x.min_velocity: -1.0
-    angular.z.max_velocity:  2.0   # rad/s
-    angular.z.min_velocity: -2.0
+    # Max wheel speed at 200 RPM: 200 * 2π/60 * 0.035 m ≈ 0.73 m/s linear.
+    # Conservative caps give nav2 headroom to decelerate smoothly and keep
+    # angular corrections small enough not to trigger the PWM floor repeatedly.
+    linear.x.max_velocity:        0.50   # m/s  (~68% of theoretical max)
+    linear.x.min_velocity:       -0.50
+    linear.x.max_acceleration:    0.40   # m/s² – gentle ramp-up
+    linear.x.min_acceleration:   -0.40
+    angular.z.max_velocity:       1.50   # rad/s – limit sharp on-the-spot turns
+    angular.z.min_velocity:      -1.50
+    angular.z.max_acceleration:   1.00   # rad/s²
+    angular.z.min_acceleration:  -1.00

@@ -1,4 +1,4 @@
-#include "hermes_driver_base/hermes_hardware.hpp"
+#include "hermes_motor_base/hermes_hardware.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -65,6 +65,14 @@ hardware_interface::CallbackReturn HermesHardware::on_init(
     return it->second;
   };
 
+  auto optional_param = [&](const std::string & key, double default_val) -> double {
+    auto it = info_.hardware_parameters.find(key);
+    if (it == info_.hardware_parameters.end()) {
+      return default_val;
+    }
+    return std::stod(it->second);
+  };
+
   double max_rpm = std::stod(require_param("max_rpm"));
   if (max_rpm <= 0.0) {
     RCLCPP_FATAL(rclcpp::get_logger(kHwLogger), "max_rpm must be positive");
@@ -73,6 +81,12 @@ hardware_interface::CallbackReturn HermesHardware::on_init(
   max_motor_speed_ = max_rpm * 2.0 * M_PI / 60.0;  // RPM → rad/s
 
   int pwm_freq = std::stoi(require_param("pwm_frequency"));
+
+  // Optional: minimum PWM fraction to overcome motor static friction (default 15 %)
+  const double min_pwm_fraction = optional_param("min_pwm_fraction", 0.15);
+  // Optional: normalised-speed deadband – commands below this are treated as
+  // zero to prevent navigation micro-corrections from triggering min-PWM snaps
+  const double velocity_deadband = optional_param("velocity_deadband", 0.05);
 
   TB6612Pins pins;
   pins.motor_a.pwm = std::stoi(require_param("gpio_pwma"));
@@ -84,7 +98,8 @@ hardware_interface::CallbackReturn HermesHardware::on_init(
   pins.stby        = std::stoi(require_param("gpio_stby"));
   std::string chip_name = require_param("gpio_chip");
 
-  driver_ = std::make_unique<TB6612FNG>(pins, pwm_freq, chip_name);
+  driver_ = std::make_unique<TB6612FNG>(
+    pins, pwm_freq, chip_name, min_pwm_fraction, velocity_deadband);
 
   // Reset state
   wheel_positions_.fill(0.0);
@@ -93,8 +108,10 @@ hardware_interface::CallbackReturn HermesHardware::on_init(
 
   RCLCPP_INFO(
     rclcpp::get_logger(kHwLogger),
-    "HermesHardware initialised  joints=[%s, %s]  max_motor_speed=%.2f rad/s",
-    joint_names_[0].c_str(), joint_names_[1].c_str(), max_motor_speed_);
+    "HermesHardware initialised  joints=[%s, %s]  max_motor_speed=%.2f rad/s"
+    "  min_pwm=%.0f%%  deadband=%.0f%%",
+    joint_names_[0].c_str(), joint_names_[1].c_str(), max_motor_speed_,
+    min_pwm_fraction * 100.0, velocity_deadband * 100.0);
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
