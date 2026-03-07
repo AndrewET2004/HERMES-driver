@@ -6,7 +6,7 @@
     <description>
       ros2_control SystemInterface plugin for the HERMES differential-drive
       robot. Controls two DC motors via the TB6612FNG dual H-bridge motor
-      driver over Linux GPIO (libgpiod v2). Suitable for Raspberry Pi and
+      driver over Linux GPIO (libgpiod v1). Suitable for Raspberry Pi and
       similar single-board computers.
 
       Since the robot has no wheel encoders, the read() method integrates
