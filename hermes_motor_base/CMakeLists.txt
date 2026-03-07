@@ -15,12 +15,11 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 
 # ── GPIO Library ─────────────────────────────────────────────────────
-# libgpiod v1.x C library for Linux GPIO character devices.
-# On Raspberry Pi OS (Bullseye) / Ubuntu 22.04: sudo apt install libgpiod-dev
-# Uses the v1 API (tested with 1.6.x); incompatible with the v2 API.
+# libgpiod v2.x C library for Linux GPIO character devices.
+# On Raspberry Pi OS (Bookworm) / Ubuntu 24.04: sudo apt install libgpiod-dev
+# Requires the v2 API (gpiod_line_request, gpiod_chip_request_lines, etc.).
 #
-# Try pkg-config first; fall back to manual search when gpiod.pc is absent
-# (common on Raspberry Pi with libgpiod 1.6.3 installed via apt).
+# Try pkg-config first; fall back to manual search when gpiod.pc is absent.
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
   pkg_check_modules(GPIOD QUIET gpiod)
