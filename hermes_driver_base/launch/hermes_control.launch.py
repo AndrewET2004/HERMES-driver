@@ -33,6 +33,11 @@ def generate_launch_description():
             {'robot_description': robot_description},
             controllers_file,
         ],
+        # Remap the diff_drive_controller odometry topic away from /odom so it
+        # does not interfere with the project's own odometry source.
+        remappings=[
+            ('/diff_drive_controller/odom', '/unused/diff_drive_odom'),
+        ],
         output='screen',
     )
 

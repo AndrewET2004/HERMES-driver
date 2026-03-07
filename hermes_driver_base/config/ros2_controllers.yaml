@@ -2,7 +2,9 @@
 # HERMES ros2_control configuration
 #
 # controller_manager spawns the controllers listed below.
-# diff_drive_controller handles /cmd_vel → wheel commands and publishes /odom.
+# diff_drive_controller handles /cmd_vel → wheel commands.
+# Odometry (/odom) and the odom→base_link TF are NOT published here;
+# the project supplies its own odometry and TF sources.
 # joint_state_broadcaster re-publishes wheel states on /joint_states.
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -32,7 +34,7 @@ diff_drive_controller:
     # open_loop: false means the controller integrates wheel velocity states
     # (provided by HermesHardware::read) to compute odometry.
     open_loop: false
-    enable_odom_tf: true      # publish odom → base_link TF transform
+    enable_odom_tf: false     # do NOT publish odom → base_link TF (external source used)
     odom_frame_id:  odom
     base_frame_id:  base_link
 
