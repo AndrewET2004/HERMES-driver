@@ -6,7 +6,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
-#include "hermes_driver_base/tb6612fng.hpp"
+#include "hermes_motor_base/tb6612fng.hpp"
 
 namespace hermes_driver
 {

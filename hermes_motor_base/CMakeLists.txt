@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(hermes_driver_base)
+project(hermes_motor_base)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -46,7 +46,7 @@ ament_target_dependencies(hermes_hardware
 target_link_libraries(hermes_hardware ${GPIOD_LIBRARIES} Threads::Threads)
 
 # Register the pluginlib description file
-pluginlib_export_plugin_description_file(hardware_interface hermes_driver_base_plugin.xml)
+pluginlib_export_plugin_description_file(hardware_interface hermes_motor_base_plugin.xml)
 
 # ── Legacy standalone node (kept for backward compatibility) ──────────
 add_executable(diff_drive_controller_node
@@ -88,7 +88,7 @@ install(DIRECTORY launch config urdf
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(FILES hermes_driver_base_plugin.xml
+install(FILES hermes_motor_base_plugin.xml
   DESTINATION share/${PROJECT_NAME}
 )
 

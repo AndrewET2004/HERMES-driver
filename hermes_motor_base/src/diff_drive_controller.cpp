@@ -1,4 +1,4 @@
-#include "hermes_driver_base/diff_drive_controller.hpp"
+#include "hermes_motor_base/diff_drive_controller.hpp"
 
 #include <algorithm>
 #include <cmath>

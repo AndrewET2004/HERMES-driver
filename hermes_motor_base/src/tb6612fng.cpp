@@ -1,4 +1,4 @@
-#include "hermes_driver_base/tb6612fng.hpp"
+#include "hermes_motor_base/tb6612fng.hpp"
 
 #include <algorithm>
 #include <chrono>

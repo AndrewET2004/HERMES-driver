@@ -1,4 +1,4 @@
-#include "hermes_driver_base/hermes_hardware.hpp"
+#include "hermes_motor_base/hermes_hardware.hpp"
 
 #include <algorithm>
 #include <cmath>

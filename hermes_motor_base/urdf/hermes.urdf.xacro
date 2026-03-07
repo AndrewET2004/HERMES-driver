@@ -93,7 +93,7 @@
   <!-- ── ros2_control hardware interface ────────────────────────────── -->
   <ros2_control name="HermesHardware" type="system">
     <hardware>
-      <plugin>hermes_driver_base/HermesHardware</plugin>
+      <plugin>hermes_motor_base/HermesHardware</plugin>
 
       <!-- Motor limits -->
       <param name="max_rpm">200.0</param>

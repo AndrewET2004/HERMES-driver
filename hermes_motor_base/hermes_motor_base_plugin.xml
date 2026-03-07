@@ -1,6 +1,6 @@
 <library path="hermes_hardware">
   <class
-    name="hermes_driver_base/HermesHardware"
+    name="hermes_motor_base/HermesHardware"
     type="hermes_driver::HermesHardware"
     base_class_type="hardware_interface::SystemInterface">
     <description>

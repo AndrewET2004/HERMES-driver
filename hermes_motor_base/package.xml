@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>hermes_driver_base</name>
+  <name>hermes_motor_base</name>
   <version>0.1.0</version>
   <description>
     Low-level motor driver for HERMES. Provides a ros2_control hardware
