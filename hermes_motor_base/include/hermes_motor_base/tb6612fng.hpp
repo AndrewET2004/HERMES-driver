@@ -30,7 +30,7 @@ struct TB6612Pins
 /// Low-level driver for the TB6612FNG dual H-bridge motor driver.
 ///
 /// Responsibilities:
-///   - Initialise GPIO pins (via libgpiod v2)
+///   - Initialise GPIO pins (via libgpiod v1)
 ///   - Accept a speed value [-1.0, 1.0] per motor and translate to
 ///     PWM duty-cycle + direction pin states using software PWM threads
 ///   - Enable / disable the driver via the STBY pin
@@ -92,18 +92,17 @@ public:
 
 private:
   /// Software-PWM state for one motor channel.
-  /// The PWM thread owns exclusive access to its request; no locking needed.
+  /// The PWM thread owns exclusive access to its line; no locking needed.
   struct PwmState
   {
     std::atomic<unsigned>  duty{0};       // 0 (off) … 255 (full on)
     std::atomic<bool>      running{false};
-    gpiod_line_request *   request{nullptr};  // single-line request (PWM pin)
-    unsigned int           offset{0};         // GPIO line offset
+    gpiod_line *           line{nullptr};  // single-line handle (PWM pin)
     int                    freq{1000};
     std::thread            thread;
   };
 
-  void set_motor(unsigned int in1_off, unsigned int in2_off, PwmState & pwm, double speed);
+  void set_motor(gpiod_line * in1_line, gpiod_line * in2_line, PwmState & pwm, double speed);
 
   TB6612Pins  pins_;
   int         pwm_freq_;
@@ -112,13 +111,18 @@ private:
   double      velocity_deadband_;  // normalised speed below which motor is stopped
   bool        initialised_{false};
 
-  // libgpiod v2 handles
-  gpiod_chip *         chip_{nullptr};
-  /// Request for the five direction/standby lines (ain1, ain2, bin1, bin2, stby).
-  /// Only ever accessed from the main thread.
-  gpiod_line_request * dir_request_{nullptr};
+  // libgpiod v1 handles
+  gpiod_chip * chip_{nullptr};
 
-  // Software PWM channels (one per motor); each owns a single-line request.
+  /// Individual direction and standby line handles.
+  /// Only ever accessed from the main thread.
+  gpiod_line * line_in1_a_{nullptr};
+  gpiod_line * line_in2_a_{nullptr};
+  gpiod_line * line_in1_b_{nullptr};
+  gpiod_line * line_in2_b_{nullptr};
+  gpiod_line * line_stby_{nullptr};
+
+  // Software PWM channels (one per motor); each owns a single-line handle.
   PwmState pwm_a_;
   PwmState pwm_b_;
 };

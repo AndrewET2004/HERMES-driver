@@ -15,11 +15,11 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 
 # ── GPIO Library ─────────────────────────────────────────────────────
-# libgpiod v2 is the current stable C library for Linux GPIO character devices.
-# On Raspberry Pi OS (Bookworm): sudo apt install libgpiod-dev
-# Enforces the v2 API which is incompatible with v1.x.
+# libgpiod v1.x C library for Linux GPIO character devices.
+# On Raspberry Pi OS (Bullseye) / Ubuntu 22.04: sudo apt install libgpiod-dev
+# Uses the v1 API (tested with 1.6.x); incompatible with the v2 API.
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GPIOD REQUIRED gpiod>=2.0)
+pkg_check_modules(GPIOD REQUIRED gpiod)
 
 # Threads are required for software PWM
 find_package(Threads REQUIRED)
