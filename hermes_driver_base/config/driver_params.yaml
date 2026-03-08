@@ -13,6 +13,21 @@ diff_drive_controller:
     # ── PWM ───────────────────────────────────────────────────────
     pwm_frequency: 1000       # Hz  (frequency at which the PWM signal is generated)
 
+    # ── Stiction Compensation ─────────────────────────────────────
+    # On the first non-zero command after a motor has been idle (or when it
+    # reverses direction), a kickstart window is opened:
+    #   • pwm_min_static is enforced as the floor for pwm_kickstart_ms ms
+    #     so that static friction is always overcome.
+    # After the window closes:
+    #   • only pwm_min_kinetic is enforced (default 0.0).
+    #     Raise this slightly (e.g. 0.05) if the robot stalls on rough terrain.
+    #     Keeping it at 0.0 allows the full commanded range for accurate turns.
+    # When the command drops to near-zero the motor state resets, so the next
+    # activation gets a fresh kickstart automatically.
+    pwm_min_static:   0.15    # minimum PWM during kickstart   [0.0 – 1.0]
+    pwm_kickstart_ms: 200.0   # kickstart window duration      [ms]
+    pwm_min_kinetic:  0.0     # minimum PWM after kickstart    [0.0 – 1.0]
+
     # ── GPIO Chip ────────────────────────────────────────────────────
     gpio_chip: gpiochip0          # Linux GPIO character device name
 
