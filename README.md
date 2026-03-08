@@ -26,13 +26,13 @@ PWM + direction signals for a **TB6612FNG** dual H-bridge motor driver connected
 ## Building
 ```bash
 cd ~/hermes_ws
-colcon build --packages-select hermes_driver_base
+colcon build --packages-select hermes_motor_base
 source install/setup.bash
 ```
 
 ## Running
 ```bash
-ros2 launch hermes_driver_base driver.launch.py
+ros2 launch hermes_motor_base driver.launch.py
 ```
 
 ## Parameters

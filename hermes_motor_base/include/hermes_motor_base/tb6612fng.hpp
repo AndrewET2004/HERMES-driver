@@ -1,5 +1,5 @@
-#ifndef HERMES_DRIVER_BASE__TB6612FNG_HPP_
-#define HERMES_DRIVER_BASE__TB6612FNG_HPP_
+#ifndef HERMES_MOTOR_BASE__TB6612FNG_HPP_
+#define HERMES_MOTOR_BASE__TB6612FNG_HPP_
 
 #include <atomic>
 #include <cstdint>
@@ -102,4 +102,4 @@ private:
 
 }  // namespace hermes_driver
 
-#endif  // HERMES_DRIVER_BASE__TB6612FNG_HPP_
+#endif  // HERMES_MOTOR_BASE__TB6612FNG_HPP_

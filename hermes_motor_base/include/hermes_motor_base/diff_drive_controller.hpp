@@ -1,5 +1,5 @@
-#ifndef HERMES_DRIVER_BASE__DIFF_DRIVE_CONTROLLER_HPP_
-#define HERMES_DRIVER_BASE__DIFF_DRIVE_CONTROLLER_HPP_
+#ifndef HERMES_MOTOR_BASE__DIFF_DRIVE_CONTROLLER_HPP_
+#define HERMES_MOTOR_BASE__DIFF_DRIVE_CONTROLLER_HPP_
 
 #include <chrono>
 #include <memory>
@@ -7,7 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
-#include "hermes_driver_base/tb6612fng.hpp"
+#include "hermes_motor_base/tb6612fng.hpp"
 
 namespace hermes_driver
 {
@@ -88,4 +88,4 @@ private:
 
 }  // namespace hermes_driver
 
-#endif  // HERMES_DRIVER_BASE__DIFF_DRIVE_CONTROLLER_HPP_
+#endif  // HERMES_MOTOR_BASE__DIFF_DRIVE_CONTROLLER_HPP_

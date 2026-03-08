@@ -1,4 +1,4 @@
-#include "hermes_driver_base/tb6612fng.hpp"
+#include "hermes_motor_base/tb6612fng.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -149,7 +149,7 @@ bool TB6612FNG::init()
       gpiod_chip_close(chip_); chip_ = nullptr;
       return false;
     }
-    gpiod_request_config_set_consumer(req_cfg, "hermes_driver");
+    gpiod_request_config_set_consumer(req_cfg, "hermes_motor");
 
     dir_request_ = gpiod_chip_request_lines(chip_, req_cfg, line_cfg);
 
@@ -167,7 +167,7 @@ bool TB6612FNG::init()
   // ── PWM pins (each gets its own request; owned exclusively by its thread) ─
   pwm_a_.offset  = static_cast<unsigned int>(pins_.motor_a.pwm);
   pwm_a_.freq    = pwm_freq_;
-  pwm_a_.request = request_output_line(chip_, pwm_a_.offset, "hermes_driver_pwma");
+  pwm_a_.request = request_output_line(chip_, pwm_a_.offset, "hermes_motor_pwma");
   if (!pwm_a_.request) {
     std::fprintf(stderr, "[TB6612FNG] Failed to request PWMA line %d\n", pins_.motor_a.pwm);
     gpiod_line_request_release(dir_request_); dir_request_ = nullptr;
@@ -177,7 +177,7 @@ bool TB6612FNG::init()
 
   pwm_b_.offset  = static_cast<unsigned int>(pins_.motor_b.pwm);
   pwm_b_.freq    = pwm_freq_;
-  pwm_b_.request = request_output_line(chip_, pwm_b_.offset, "hermes_driver_pwmb");
+  pwm_b_.request = request_output_line(chip_, pwm_b_.offset, "hermes_motor_pwmb");
   if (!pwm_b_.request) {
     std::fprintf(stderr, "[TB6612FNG] Failed to request PWMB line %d\n", pins_.motor_b.pwm);
     gpiod_line_request_release(pwm_a_.request); pwm_a_.request = nullptr;
